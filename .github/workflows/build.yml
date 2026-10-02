@@ -25,8 +25,13 @@ jobs:
         run: |
           npm init -y
           npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+          npm install thermal-printer-cordova-plugin cordova-plugin-android-permissions
           npx cap init "Maruf Billing" com.maruf.billing --web-dir www
           npx cap add android
+      - name: Bluetooth permissions and repositories
+        run: |
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.BLUETOOTH" />\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />\n</manifest>#' android/app/src/main/AndroidManifest.xml
+          sed -i "s#mavenCentral()#mavenCentral()\n        maven { url 'https://jitpack.io' }#" android/build.gradle
           npx cap sync android
       - name: Build APK
         run: |
