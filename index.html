@@ -91,7 +91,7 @@ function startO(){const n=$('#sn').value.trim();if(!n){alert('Please enter the s
 
 function orderV(){
  if(!S.shop)return `<div class="pad"><div class="card"><b>Shop details</b><br><br>Shop name<input id="sn" placeholder="e.g. Rahim General Store">Phone (optional)<input id="sp" type="tel">Address / market (optional)<input id="sa"><button class="w" onclick="startO()">Start order</button></div></div>`;
- if(S.view=='memo'&&S.memo)return `<div class="pad">${memoH(S.memo)}<br><button class="w" onclick="window.print()">Print memo</button><br><br><button class="o w" onclick="newO()">New order</button></div>`;
+ if(S.view=='memo'&&S.memo)return `<div class="pad">${memoH(S.memo)}<br><button class="w" onclick="doPrint()">Print memo</button><br><br><button class="o w" onclick="pickP()">Printer: ${prnName()}</button><br><br><button class="o w" onclick="newO()">New order</button></div>`;
  const T=tot(S.cart);
  if(S.view=='rev')return `<div class="pad"><div class="card"><b>Review order</b>${Object.keys(S.cart).map(id=>{const p=pd(id),q=S.cart[id];return `<div class="row"><span>${p[1]}<br><small>${qs(q)}</small></span><b>${tk(line(p,q))}</b></div>`}).join('')}<div class="row"><b>Total</b><b>${tk(T.t)}</b></div><br>Payment<select onchange="S.pay=this.value"><option ${S.pay=='Cash'?'selected':''}>Cash</option><option ${S.pay=='Due'?'selected':''}>Due</option></select></div><button class="w" onclick="conf()">Create memo</button><br><br><button class="o w" onclick="S.view='cat';render()">Back to products</button></div>`;
  const L=P.filter(p=>S.cat=='All'||p[2]==S.cat);
@@ -110,7 +110,7 @@ function conf(){const T=tot(S.cart);if(!T.n)return;const a=ld(),lt=new Date(Date
 function memoH(m){return `<div id="memo"><div class="c"><svg width="54" height="54" viewBox="0 0 54 54"><circle cx="27" cy="27" r="26" fill="#0f766e"/><path d="M14 38V16l13 14 13-14v22" fill="none" stroke="#fff" stroke-width="5" stroke-linejoin="round"/></svg><div style="font-size:17px;font-weight:800">${esc(CFG.name)}</div>${esc(CFG.tag)}<br>${esc(CFG.addr)} · ${esc(CFG.phone)}<hr><b>INVOICE MEMO</b></div><div class="row"><span>No: ${m.no}</span><span>${m.date} ${m.time}</span></div><div>Shop: <b>${esc(m.shop.name)}</b>${m.shop.addr?'<br>'+esc(m.shop.addr):''}${m.shop.phone?'<br>'+esc(m.shop.phone):''}</div><br><table><tr><th>Item</th><th>Qty</th><th>Amount</th></tr>${m.lines.map(l=>`<tr><td>${esc(l.n)}</td><td>${l.q}</td><td>${tk(l.a)}</td></tr>`).join('')}</table><div class="row"><b>Total (${m.units} pcs)</b><b>${tk(m.total)}</b></div><div class="row"><span>Payment</span><b>${m.pay}</b></div><p class="c">Thank you for your order!<br><small>Delivered by: ____________</small></p></div>`}
 
 function memosV(){
- if(S.memo)return `<div class="pad">${memoH(S.memo)}<br><button class="w" onclick="window.print()">Print memo</button><br><br><button class="o w" onclick="S.memo=null;render()">Back</button></div>`;
+ if(S.memo)return `<div class="pad">${memoH(S.memo)}<br><button class="w" onclick="doPrint()">Print memo</button><br><br><button class="o w" onclick="pickP()">Printer: ${prnName()}</button><br><br><button class="o w" onclick="S.memo=null;render()">Back</button></div>`;
  const a=ld().map((m,i)=>[m,i]).reverse();
  return `<div class="pad">${a.map(([m,i])=>`<div class="card" onclick="S.memo=ld()[${i}];render()"><div class="row" style="border:0"><b>${esc(m.shop.name)}</b><b>${tk(m.total)}</b></div><small>${m.no} · ${m.date} ${m.time} · ${m.pay}</small></div>`).join('')||'<p>No memos yet. Create your first order from the Order tab.</p>'}</div>`}
 
@@ -123,6 +123,27 @@ function seed(){const a=ld(),n=['Rahim General Store','Sadia Variety Store','Has
  for(let i=0;i<6;i++){const lines=[];let t=0,u=0;for(let k=0;k<3;k++){const p=P[(i*3+k*5)%P.length],q={c:k%2,p:2+k*3+i%3},l={id:p[0],n:p[1],q:qs(q),u:q.c*p[4]+q.p,a:line(p,q)};lines.push(l);t+=l.a;u+=l.u}
  a.push({no:'INV-DEMO-'+(i+1),date:td(),time:'1'+i+':20',shop:{name:n[i%5],phone:'',addr:''},pay:i%3?'Cash':'Due',total:t,units:u,lines})}
  sv(a);render()}
+// ---- Bluetooth printing (APK only; browser falls back to normal print) ----
+const TP=()=>window.ThermalPrinter;
+const prn=()=>{try{return JSON.parse(localStorage.prn||'null')}catch(e){return null}};
+const prnName=()=>prn()?esc(prn().name):'Not selected';
+const asc=s=>String(s).replace(/৳/g,'Tk ').replace(/[^\x20-\x7E\n]/g,'?');
+const LN='[C]'+'-'.repeat(48)+'\n',pad=(l,r)=>`[L]${l}[R]${r}\n`;
+function perm(cb){const P=window.cordova&&cordova.plugins&&cordova.plugins.permissions;if(!P)return cb();
+ P.requestPermissions(['android.permission.BLUETOOTH_CONNECT','android.permission.BLUETOOTH_SCAN'],()=>cb(),()=>cb())}
+function testText(){return `[C]<b>PRINT TEST</b>\n[C]${CFG.name}\n${LN}[L]${'1234567890'.repeat(5).slice(0,48)}\n`+pad('Paper 80mm','OK')+LN}
+function memoText(m){let t=`[C]<font size='big'><b>${CFG.name}</b></font>\n[C]${CFG.tag}\n[C]${CFG.addr} ${CFG.phone}\n${LN}[C]<b>INVOICE MEMO</b>\n`+pad('No: '+m.no,m.date+' '+m.time)+`[L]Shop: <b>${m.shop.name}</b>\n`;
+ if(m.shop.addr)t+=`[L]${m.shop.addr}\n`;if(m.shop.phone)t+=`[L]${m.shop.phone}\n`;t+=LN;
+ m.lines.forEach(l=>{t+=`[L]${l.n}\n`+pad('   '+l.q,tk(l.a))});
+ return t+LN+pad(`<b>Total (${m.units} pcs)</b>`,`<b>${tk(m.total)}</b>`)+LN+'[C]Thank you for your order!\n[C]Delivered by: ____________\n'}
+function printTxt(t){const p=prn();if(!p){pickP();return}
+ perm(()=>TP().printFormattedText({type:'bluetooth',id:p.id,text:asc(t),printerDpi:203,printerWidthMM:72,printerNbrCharactersPerLine:48,mmFeedPaper:20},()=>{},e=>alert('Print error: '+JSON.stringify(e))))}
+function doPrint(){if(!TP()){window.print();return}printTxt(memoText(S.memo))}
+function pickP(){if(!TP()){alert('Bluetooth printing works only in the installed APK.');return}
+ perm(()=>TP().listPrinters({type:'bluetooth'},list=>{window._pl=list;const d=document.createElement('div');d.className='mo';
+ d.innerHTML=`<div><b>Paired printers</b><br><small>Pair the printer first in phone Settings &gt; Bluetooth. Tap a printer to select it and print a test slip.</small><br><br>${list.length?list.map((p,i)=>`<button class="o w" style="margin-bottom:8px" onclick="selP(${i})">${esc(p.name||p.address||p.id)}</button>`).join(''):'<p>No paired devices found.</p>'}<button class="r w" onclick="this.closest('.mo').remove()">Close</button></div>`;
+ document.body.append(d)},e=>alert('Error: '+JSON.stringify(e))))}
+function selP(i){const p=window._pl[i];try{localStorage.prn=JSON.stringify({id:p.address||p.id,name:p.name||p.address})}catch(e){}
+ document.querySelector('.mo').remove();render();printTxt(testText())}
 render();
 </script></body></html>
-
